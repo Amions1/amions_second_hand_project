@@ -1,0 +1,26 @@
+# 后端 Django
+AmionsProject/venv/
+AmionsProject/__pycache__/
+AmionsProject/*.pyc
+AmionsProject/*.pyo
+AmionsProject/*.pyd
+AmionsProject/.env
+AmionsProject/db.sqlite3
+AmionsProject/.idea/
+
+# 前端 Vue
+amions_vue_nuaa/node_modules/
+amions_vue_nuaa/dist/
+amions_vue_nuaa/.env
+amions_vue_nuaa/.idea/
+
+# 编辑器
+.idea/
+.vscode/
+*.iml
+*.iws
+*.bak
+
+# 系统
+.DS_Store
+Thumbs.db
