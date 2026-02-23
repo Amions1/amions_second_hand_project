@@ -41,9 +41,7 @@ class GetUsersView(View):
             }
 
             return HttpResponse(
-                # ensure_ascii=False防止乱码
                 json.dumps(results_json, indent=4, ensure_ascii=False),
-                # 指定响应类型和编码
                 content_type="application/json; charset=utf-8"
             )
 
@@ -90,13 +88,13 @@ class GetGoodsView(View):
                     "id": goods.id,
                     "title": goods.title,
                     "category_id": goods.category_id,
-                    "category_name": categories.get(goods.category_id, ''),  # 添加分类名称
+                    "category_name": categories.get(goods.category_id, ''),
                     "price": float(goods.price) ,
                     "quality": int(goods.quality) ,
                     "status": int(goods.status) ,
                     "create_time": goods.create_time.isoformat(),
                     "publisher_id": goods.publisher.id,
-                    "publisher_nickname": goods.publisher.nickname,  # 添加发布者昵称
+                    "publisher_nickname": goods.publisher.nickname,
                     "image": image_url
                 })
 
