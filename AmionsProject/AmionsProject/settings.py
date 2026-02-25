@@ -256,7 +256,7 @@ LOGGING = {
 }
 
 #是否为内网穿透环境
-USE_PEANUT_SHELL = True
+USE_PEANUT_SHELL = False
 
 # 支付宝配置
 ALIPAY_APPID = '9021000159649709'

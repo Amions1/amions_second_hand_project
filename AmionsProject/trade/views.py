@@ -380,7 +380,8 @@ class Search(View):
             # 对goods表进行模糊查询
             goods_list = Goods.objects.filter(
                 Q(title__icontains=keyword) |
-                Q(details__icontains=keyword)
+                Q(details__icontains=keyword),
+                status=Goods.STATUS_ON
             )
 
             # 序列化查询结果
