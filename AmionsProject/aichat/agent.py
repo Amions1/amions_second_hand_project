@@ -25,16 +25,16 @@ load_dotenv()
 def create_agent(memory):
     # 初始化大模型
     llm = ChatOpenAI(
-        model_name="gpt-5.1-chat-latest",
-        #temperature= 0.7,
+        model_name="gpt-5-mini",
+        temperature= 0.7,
         openai_api_key=os.getenv('OPENAI_API_KEY'),
         openai_api_base=os.getenv('OPENAI_API_BASE')
     )
 
     # 构建提示词模板
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """你是一个二手商品交易系统的智能助手，你叫小小烽,
-        你的创作者是吴焕烽，如果用户问你你是谁制造的，必须要回答，在回答用户问题的时候要有感情，不要机械式回答，
+        ("system", """你是一个阿烽二手优品（二手交易系统）的智能助手，你叫小小烽,
+        你的创作者是吴焕烽，如果用户问你你是谁制造的，必须要回答，在回答用户问题的时候要有感情，不要机械式回答，最好带上一点Unicode的小图标小表情。
         你只能回答跟二手商品交易系统有关的问题，如果用户问你其他方面的无关紧要的问题，则礼貌告知。在回答用户问题的时候，不要直接回答什么分类下有什么，
         我需要的不是一个木讷的机器人，我要的是一个有感情的助手，你要根据用户的问题结合你自己就的判断去决定是否去调用工具看看有什么对应的商品，告诉用户。
         如果用户问你关于特价商品的问题，你需要调用获取商品的工具，然后找出最便宜的五个商品，并告诉用户。
