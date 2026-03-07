@@ -12,7 +12,7 @@ class ChatMessage(models.Model):
     ]
     
     # 消息基本信息
-    room_name = models.CharField(max_length=50, verbose_name='房间名，格式：room_小ID_大ID')
+    room_name = models.CharField(max_length=50, verbose_name='房间名')
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages', verbose_name='发送者')
     receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_messages', verbose_name='接收者')
     content = models.TextField(verbose_name='消息内容')

@@ -4,6 +4,7 @@ from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 import logging
 import os
+import random
 from datetime import datetime
 from django.core.cache import cache
 from django.conf import settings
@@ -164,6 +165,8 @@ class GoodsMenuView(View):
         # 清除可能的缓存，确保新发布的商品能够被立即获取
         # 清除与该分类相关的任何可能的缓存
         cache.delete(f'goods_category_{category_id}')
+        # 缓存新发布的商品
+        cache_goods_data(goods.id)
         print("用户发布了商品！")
         print(
             f"商品信息: {title}, {category_id}, {price}, {quality}, {status}, 发布者id: {publisher_id}, 图片路径: {image_path},商品详情:{details}")
@@ -235,26 +238,17 @@ class GoodsListView(View):
                 content_type="application/json; charset=utf-8"
             )
 
-
-
-def cache_all_goods_data():
-    """
-    将所有商品数据缓存到Redis中
-    缓存键：all_goods_data
-    过期时间：24小时
-    """
+#将单个商品数据缓存到 Redis 中
+def cache_goods_data(goods_id=None):
     try:
-        # 查询所有商品数据
-        all_goods = Goods.objects.select_related('publisher').all()
-        
-        # 序列化商品数据
-        goods_data = []
-        for goods in all_goods:
+        if goods_id:
+            # 缓存单个商品
+            goods = Goods.objects.select_related('publisher').get(id=goods_id)
             image_url = ""
             if goods.image:
                 image_url = f"{settings.MEDIA_URL}{goods.image}".replace("\\", "/")
             
-            goods_data.append({
+            goods_data = {
                 "id": goods.id,
                 "title": goods.title,
                 "price": float(goods.price),
@@ -266,51 +260,121 @@ def cache_all_goods_data():
                 "details": goods.details,
                 "category_id": goods.category_id,
                 "create_time": goods.create_time.strftime("%Y-%m-%d %H:%M:%S")
-            })
-        
-        # 转换为JSON格式的字符串数组
-        goods_json = json.dumps(goods_data, ensure_ascii=False)
-        
-        # 存入Redis，过期时间2小时(7200秒)
-        cache.set('all_goods_data', goods_json, timeout=7200)
-        logging.info(f"成功缓存 {len(goods_data)} 条商品数据到Redis (JSON格式)")
-        
+            }
+            
+            # 生成随机过期时间：2-4 小时（7200-14400 秒），防止缓存雪崩
+            random_ttl = random.randint(7200, 14400)
+            # 存入 Redis
+            cache.set(f'goods:{goods_id}', goods_data, timeout=random_ttl)
+            logging.info(f"成功缓存商品 ID: {goods_id} 到 Redis (键：goods:{goods_id}, TTL: {random_ttl}秒)")
+        else:
+            # goods_id: 商品 ID，如果为 None 则缓存所有商品
+            all_goods = Goods.objects.select_related('publisher').all()
+            for goods in all_goods:
+                cache_goods_data(goods.id)
+            logging.info(f"成功缓存所有商品到 Redis")
+            
+    except Goods.DoesNotExist:
+        logging.error(f"商品 ID: {goods_id} 不存在")
     except Exception as e:
-        logging.error(f"缓存商品数据失败: {str(e)}")
+        logging.error(f"缓存商品数据失败：{str(e)}")
 
-def get_goods_from_cache_or_db():
-    """
-    从Redis获取商品数据，如果没有则从数据库查询并缓存
-    """
-    # 先尝试从Redis获取
-    cached_goods_json = cache.get('all_goods_data')
-    
-    if cached_goods_json is not None:
-        logging.info("从Redis缓存获取商品数据")
-        # 将JSON字符串转换回Python对象
-        return json.loads(cached_goods_json)
+#从 Redis 获取商品数据，如果没有则从数据库查询并缓存，支持防止缓存穿透：对于不存在的数据也缓存空值
+def get_goods_from_cache_or_db(goods_id=None):
+    if goods_id:
+        # 获取单个商品
+        cached_goods = cache.get(f'goods:{goods_id}')
+        
+        if cached_goods is not None:
+            logging.info(f"从 Redis 缓存获取商品数据 (键：goods:{goods_id})")
+            return cached_goods
+        else:
+            logging.info(f"Redis 缓存未命中，从数据库查询商品 ID: {goods_id}")
+            try:
+                goods = Goods.objects.select_related('publisher').get(id=goods_id)
+                # 缓存该商品
+                cache_goods_data(goods_id)
+                # 重新从缓存获取
+                return cache.get(f'goods:{goods_id}')
+            except Goods.DoesNotExist:
+                # 防止缓存穿透：将空结果也缓存起来，TTL 设置为 2 分钟（120 秒）
+                cache.set(f'goods:{goods_id}', None, timeout=120)
+                logging.warning(f"商品 ID: {goods_id} 不存在，已缓存空值防止缓存穿透 (TTL: 120 秒)")
+                return None
     else:
-        logging.info("Redis缓存未命中，从数据库查询并缓存")
-        cache_all_goods_data()
-        cached_goods_json = cache.get('all_goods_data')
-        return json.loads(cached_goods_json) if cached_goods_json else []
+        # 商品 ID，如果为 None 则返回所有商品 - 批量优化
+        all_goods = Goods.objects.select_related('publisher').all()
+        results = []
+        
+        # 构建所有商品的缓存 key 列表
+        goods_keys = [f'goods:{goods.id}' for goods in all_goods]
+        
+        # 使用 mget 批量从 Redis 获取所有商品数据（一次网络请求）
+        cached_results = cache.get_many(goods_keys)
+        
+        # 分离命中和未命中的商品
+        missing_goods_ids = []
+        cached_goods_map = {}
+        
+        for goods in all_goods:
+            key = f'goods:{goods.id}'
+            if key in cached_results:
+                cached_goods_map[goods.id] = cached_results[key]
+                results.append(cached_results[key])
+            else:
+                missing_goods_ids.append(goods.id)
+        
+        logging.info(f"所有商品数：{len(all_goods)}, 缓存命中：{len(cached_goods_map)}, 未命中：{len(missing_goods_ids)}")
+        
+        # 如果有缺失的商品，批量查询并缓存
+        if missing_goods_ids:
+            # 使用 IN 查询批量获取缺失的商品（一次数据库查询）
+            missing_goods_list = Goods.objects.filter(
+                id__in=missing_goods_ids
+            ).select_related('publisher')
 
-# 监听Goods模型的增删改操作，自动清除Redis缓存
+            
+            for goods in missing_goods_list:
+                image_url = ""
+                if goods.image:
+                    image_url = f"{settings.MEDIA_URL}{goods.image}".replace("\\", "/")
+                
+                goods_data = {
+                    "id": goods.id,
+                    "title": goods.title,
+                    "price": float(goods.price),
+                    "quality": goods.quality,
+                    "status": goods.status,
+                    "image": image_url,
+                    "publisher_id": goods.publisher_id,
+                    "publisher_nickname": goods.publisher.nickname,
+                    "details": goods.details,
+                    "category_id": goods.category_id,
+                    "create_time": goods.create_time.strftime("%Y-%m-%d %H:%M:%S")
+                }
+                
+                # 批量缓存到 Redis，使用随机 TTL 防止雪崩
+                random_ttl = random.randint(7200, 14400)
+                cache.set(f'goods:{goods.id}', goods_data, timeout=random_ttl)
+                results.append(goods_data)
+                logging.debug(f"已缓存商品 ID: {goods.id} (TTL: {random_ttl}秒)")
+        
+        return results
+
+# 监听 Goods 模型的增删改操作，自动清除对应商品的 Redis 缓存
 @receiver(post_save, sender=Goods)
+#当 Goods 表发生新增或修改时，清除对应商品的 Redis 缓存
 def clear_goods_cache_on_save(sender, instance, **kwargs):
-    """
-    当Goods表发生新增或修改时，清除Redis缓存
-    """
-    cache.delete('all_goods_data')
-    logging.info(f"Goods表发生变化，已清除Redis缓存 - 商品ID: {instance.id}")
+    cache.delete(f'goods:{instance.id}')
+    logging.info(f"已清除商品 ID: {instance.id} 的 Redis 缓存 (键：goods:{instance.id})")
 
 @receiver(post_delete, sender=Goods)
 def clear_goods_cache_on_delete(sender, instance, **kwargs):
     """
-    当Goods表发生删除时，清除Redis缓存
+    当 Goods 表发生删除时，清除对应商品的 Redis 缓存
     """
-    cache.delete('all_goods_data')
-    logging.info(f"Goods表发生删除，已清除Redis缓存 - 商品ID: {instance.id}")
+    cache.delete(f'goods:{instance.id}')
+    logging.info(f"已清除删除商品 ID: {instance.id} 的 Redis 缓存 (键：goods:{instance.id})")
 
 #显示二级菜单，也就是具体的goods
 class GoodsSubMenu(View):

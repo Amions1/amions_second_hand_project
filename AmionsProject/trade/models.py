@@ -72,7 +72,7 @@ class Goods(models.Model):
     )
 
     title = models.CharField(max_length=128, verbose_name="商品标题")
-    category_id = models.IntegerField(verbose_name="所属二级分类ID")
+    category_id = models.IntegerField(verbose_name="所属二级分类 ID")
     price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="商品价格")
     quality = models.SmallIntegerField(verbose_name="成色")
     publisher = models.ForeignKey(User, on_delete=models.PROTECT, db_column="publisher_id", verbose_name="发布者")

@@ -157,13 +157,14 @@ const formatTime = (date: Date): string => {
 // 获取后端WebSocket基础URL
 const getBackendWsUrl = (): string => {
   // 检查当前页面URL以确定使用哪个后端地址
+  const hostname = window.location.hostname;
   const currentUrl = window.location.href;
   if (currentUrl.includes('vicp.fun')) {
     // 内网穿透环境
     return 'ws://69mdjw853446.vicp.fun:37276';
   } else {
     // 本地开发环境
-    return 'ws://192.168.31.238:8000';
+    return `ws://${hostname}:8000`;
   }
 };
 

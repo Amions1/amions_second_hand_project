@@ -165,6 +165,7 @@ const selectUser = (user: ChatUser) => {
 
 // 获取后端WebSocket基础URL
 const getBackendWsUrl = (): string => {
+  const hostname=window.location.hostname;
   // 检查当前页面URL以确定使用哪个后端地址
   const currentUrl = window.location.href;
   if (currentUrl.includes('vicp.fun')) {
@@ -172,7 +173,7 @@ const getBackendWsUrl = (): string => {
     return 'ws://69mdjw853446.vicp.fun:37276';
   } else {
     // 本地开发环境
-    return 'ws://192.168.31.238:8000';
+    return `ws://${hostname}:8000`;
   }
 };
 

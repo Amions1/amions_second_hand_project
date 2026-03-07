@@ -28,7 +28,7 @@ class Migration(migrations.Migration):
                 (
                     "room_name",
                     models.CharField(
-                        max_length=50, verbose_name="房间名，格式：room_小ID_大ID"
+                        max_length=50, verbose_name="房间名"
                     ),
                 ),
                 ("content", models.TextField(verbose_name="消息内容")),

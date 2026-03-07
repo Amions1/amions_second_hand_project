@@ -15,16 +15,56 @@ from pathlib import Path
 import rest_framework
 from rest_framework.views import exception_handler
 from channels_redis.core import RedisChannelLayer
+from dotenv import load_dotenv
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+load_dotenv()
+
+#redis配置
+REDIS_HOST=os.getenv('REDIS_HOST')
+REDIS_PORT=os.getenv('REDIS_PORT')
+REDIS_PASSWORD=os.getenv('REDIS_PASSWORD')
+
+#mysql配置
+DB_ENGINE=os.getenv('DB_ENGINE')
+DB_NAME=os.getenv('DB_NAME')
+DB_USER=os.getenv('DB_USER')
+DB_PASSWORD=os.getenv('DB_PASSWORD')
+DB_HOST=os.getenv('DB_HOST')
+DB_PORT=os.getenv('DB_PORT')
+
+#支付宝配置
+ALIPAY_APPID=os.getenv('ALIPAY_APPID')  # 支付宝appid
+ALIPAY_DEBUG=os.getenv('ALIPAY_DEBUG')  # 支付宝调试模式
+ALIPAY_URL=os.getenv('ALIPAY_URL')
+
+
+# 读取支付宝密钥文件
 BASE_DIR = Path(__file__).resolve().parent.parent
+KEYS_DIR = BASE_DIR / 'settlement' / 'keys'
+
+with open(KEYS_DIR / 'alipay_public_key.pem', 'r', encoding='utf-8') as f:
+    ALIPAY_PUBLIC_KEY = f.read()
+
+with open(KEYS_DIR / 'app_private_key.pem', 'r', encoding='utf-8') as f:
+    APP_PRIVATE_KEY = f.read()
+
+with open(KEYS_DIR / 'app_public_key.pem', 'r', encoding='utf-8') as f:
+    APP_PUBLIC_KEY = f.read()
+
+
+#网络环境配置
+USE_PEANUT_SHELL=os.getenv('USE_PEANUT_SHELL')  # 是否使用内网穿透
+LOCAL_BASE_URL=os.getenv('LOCAL_BASE_URL')
+LOCAL_PORT=os.getenv('LOCAL_PORT')
+FRONTEND_BASE_URL=os.getenv('FRONTEND_BASE_URL')
+
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-6wsdn_c$=colug@ev@f=guk@#aee=-9r1%^$h&4(ym+1w&3xuq'
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -116,24 +156,24 @@ TEMPLATES = [
 WSGI_APPLICATION = 'AmionsProject.wsgi.application'
 ASGI_APPLICATION = 'AmionsProject.asgi:application'  #WebSocket必备
 
-#聊天室,用redis做消息通道
-CHANNEL_LAYERS={
-    'default':{
-        "BACKEND":"channels.layers.InMemoryChannelLayer",
-        "CONFIG":{
-            "hosts":{('192.168.31.238',6379)}
-        }
-    }
-}
+# #聊天室,用redis做消息通道
+# CHANNEL_LAYERS={
+#     'default':{
+#         "BACKEND":"channels.layers.InMemoryChannelLayer",
+#         "CONFIG":{
+#             "hosts":[(REDIS_HOST,REDIS_PORT)]
+#         }
+#     }
+# }
 
 #redis缓存配置
 CACHES={
     "default":{
         "BACKEND":"django_redis.cache.RedisCache",
-        "LOCATION":"redis://127.0.0.1:6379/2",  # 使用 Redis db2 (数据库索引为2)
+        "LOCATION":f'redis://{REDIS_HOST}:{REDIS_PORT}/2',  # 使用 Redis db2 (数据库索引为2)
         "OPTIONS":{
             "CLIENT_CLASS":"django_redis.client.DefaultClient",
-            # "PASSWORD":"123123"  # 取消注释此行，如果您的 Redis 服务器设置了密码
+            "PASSWORD" : REDIS_PASSWORD
         },
         "KEY_PREFIX": "AmionsProject_cache"
     }
@@ -144,7 +184,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],
+            "hosts": [f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/2"],
         },
     },
 }
@@ -155,12 +195,12 @@ CHANNEL_LAYERS = {
 #数据库配置基础信息
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'amionsnuaa',
-        'USER': 'root',
-        'PASSWORD': '123123',
-        'HOST': 'localhost',
-        'PORT': '3305',
+        'ENGINE': DB_ENGINE,
+        'NAME': DB_NAME,
+        'USER': DB_USER,
+        'PASSWORD': DB_PASSWORD,
+        'HOST': DB_HOST,
+        'PORT': DB_PORT,
     }
 }
 
@@ -255,30 +295,14 @@ LOGGING = {
     },
 }
 
-#是否为内网穿透环境
-USE_PEANUT_SHELL = False
 
-# 支付宝配置
-ALIPAY_APPID = '9021000159649709'
-ALIPAY_DEBUG = True
-ALIPAY_URL = 'https://openapi-sandbox.dl.alipaydev.com/gateway.do'
 
-#根据环境动态判断
-LOCAL_BASE_URL = 'http://192.168.31.238'
-PEANUT_SHELL_BASE_URL = 'http://69mdjw853446.vicp.fun'
-LOCAL_PORT = 8000
-PEANUT_SHELL_PORT = 37276
 
-# 根据开关自动赋值
-if USE_PEANUT_SHELL:
-    BASE_URL = PEANUT_SHELL_BASE_URL
-    PORT = PEANUT_SHELL_PORT
-    FRONTEND_BASE_URL = 'http://69mdjw853446.vicp.fun'
-else:
-    BASE_URL = LOCAL_BASE_URL
-    PORT = LOCAL_PORT
-    FRONTEND_BASE_URL = 'http://192.168.31.238:5173'
 
+LOCAL_BASE_URL = LOCAL_BASE_URL
+BASE_URL = LOCAL_BASE_URL
+PORT = LOCAL_PORT
+#支付宝回调函数
 ALIPAY_RETURN_URL = f'{BASE_URL}:{PORT}/api/settlement/settlementSuccess/'
 FRONTEND_BASE_URL = FRONTEND_BASE_URL
 
